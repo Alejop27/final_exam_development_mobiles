@@ -1,0 +1,113 @@
+// schema.prisma
+// Modelo de datos del sistema de mensajería corporativa
+// Cumple con los requerimientos de BD del enunciado (slide 4):
+//  - Usuarios con sus atributos
+//  - Tokens FCM múltiples por usuario
+//  - Mensajes con remitente, destinatario, título y cuerpo
+//  - Resultado de envío push por cada token de destino
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================
+// ENTIDAD: User
+// PK: email (identificador del usuario en el sistema)
+// =====================================================
+model User {
+  email        String   @id @unique
+  passwordHash String   // bcrypt — nunca se almacena la contraseña en plano
+  fullName     String
+  photoUrl     String?  // URL pública de la foto subida
+  phoneNumber  String
+  jobTitle     String   // cargo: auxiliar, técnico redes, contador, etc.
+  authProvider AuthProvider @default(LOCAL) // para distinguir login social
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  devices         Device[]   // dispositivos (tokens FCM) del usuario
+  sentMessages    Message[]  @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  @@map("users")
+}
+
+enum AuthProvider {
+  LOCAL
+  FACEBOOK
+}
+
+// =====================================================
+// ENTIDAD: Device
+// Un mismo usuario puede tener N dispositivos, cada uno
+// con su propio token FCM (requisito explícito).
+// =====================================================
+model Device {
+  id          String   @id @default(cuid())
+  fcmToken    String   @unique
+  userEmail   String
+  user        User     @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  // Relación inversa con los registros de envío push
+  pushDeliveries PushDelivery[]
+
+  @@index([userEmail])
+  @@map("devices")
+}
+
+// =====================================================
+// ENTIDAD: Message
+// Cada mensaje tiene un remitente y un destinatario.
+// =====================================================
+model Message {
+  id              String   @id @default(cuid())
+  title           String
+  body            String
+  senderEmail     String
+  recipientEmail  String
+  createdAt       DateTime @default(now())
+
+  sender    User @relation("SentMessages", fields: [senderEmail], references: [email])
+  recipient User @relation("ReceivedMessages", fields: [recipientEmail], references: [email])
+
+  // Por cada mensaje, registramos a qué dispositivos se envió la push
+  // y cuál fue la respuesta de Firebase.
+  deliveries PushDelivery[]
+
+  @@index([recipientEmail, createdAt])
+  @@index([senderEmail, createdAt])
+  @@map("messages")
+}
+
+// =====================================================
+// ENTIDAD: PushDelivery
+// Tabla N:N entre Message y Device.
+// Cumple con dos requisitos explícitos del enunciado:
+//   - "Token de cada dispositivo del destinatario al cual se envió la notificación push"
+//   - "Resultado retornado por la API de Firebase de las notificaciones push"
+// =====================================================
+model PushDelivery {
+  id          String   @id @default(cuid())
+  messageId   String
+  deviceId    String
+  fcmToken    String   // copia denormalizada por si el dispositivo se elimina
+  success     Boolean
+  fcmResponse Json     // respuesta cruda de Firebase Admin SDK
+  errorCode   String?
+  sentAt      DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([deviceId])
+  @@map("push_deliveries")
+}
