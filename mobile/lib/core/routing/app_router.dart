@@ -1,9 +1,10 @@
+// lib/core/routing/app_router.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash/presentation/splash_screen.dart';
-import '../routing/app_routes.dart';
+import 'app_routes.dart';
 
 class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen(this.title);
@@ -24,7 +25,6 @@ class _PlaceholderScreen extends StatelessWidget {
   }
 }
 
-// Listenable que envuelve un provider de Riverpod para notificar al router
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
     _ref.listen(sessionProvider, (_, __) => notifyListeners());
