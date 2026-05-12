@@ -60,7 +60,7 @@ final class UserDetailProvider
   }
 }
 
-String _$userDetailHash() => r'827ac0ab4d0a5da5ac1441a260d425a4e5b42215';
+String _$userDetailHash() => r'f84471bd1d5b56a58f6ba41daad922d7ef2fc4bc';
 
 final class UserDetailFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<User>, String> {
@@ -118,4 +118,4 @@ final class MyProfileProvider
   }
 }
 
-String _$myProfileHash() => r'958d8482a9a8afad189e0edb2794efd11006e8a2';
+String _$myProfileHash() => r'7743845b77bd1df8ca0e1dcd1892006c5a5ae4d2';

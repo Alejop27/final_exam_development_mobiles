@@ -1,14 +1,18 @@
 // lib/features/users/presentation/screens/home_shell.dart
-// Shell principal post-login: AppBar con avatar + botón logout, BottomNav 3 tabs.
-// Tab 0 = Usuarios (real). Tabs 1 y 2 = placeholders para Fase 7.
+// Shell principal post-login. Tabs: Equipo / Mensajes / Perfil.
+// Conecta listeners de FCM para refresh in-app + banner + deep-link.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../../core/providers/active_tab_provider.dart';
+import '../../../../core/services/fcm_app_handler.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../messages/presentation/screens/inbox_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../controllers/user_detail_controller.dart';
 import 'users_list_screen.dart';
 
@@ -20,54 +24,80 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _index = 0;
+  // Key separada para el navigator interno del overlay (banner FCM)
+  final _shellNavigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FcmAppHandler(
+        ref: ref,
+        navigatorKey: _shellNavigatorKey,
+      ).start();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final myProfileAsync = ref.watch(myProfileProvider);
+    final activeTab = ref.watch(activeTabProvider);
 
     final pages = const [
       UsersListScreen(),
-      _InboxPlaceholder(),
-      _ProfilePlaceholder(),
+      InboxScreen(),
+      ProfileScreen(),
     ];
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(
-        backgroundColor: AppColors.backgroundLight,
-        elevation: 0,
-        leadingWidth: 64,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 20),
-          child: myProfileAsync.maybeWhen(
-            data: (user) => UserAvatar(
-              fullName: user.fullName,
-              photoUrl: user.photoUrl,
-              size: 40,
+      appBar: activeTab == 2
+          // En tab Perfil, el propio screen maneja header con hero.
+          // Aquí sólo lo ocultamos para no duplicar.
+          ? null
+          : AppBar(
+              backgroundColor: AppColors.backgroundLight,
+              elevation: 0,
+              leadingWidth: 64,
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 20),
+                child: myProfileAsync.maybeWhen(
+                  data: (user) => UserAvatar(
+                    fullName: user.fullName,
+                    photoUrl: user.photoUrl,
+                    size: 40,
+                  ),
+                  orElse: () => const CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.surfaceLightAlt,
+                  ),
+                ),
+              ),
+              title: Text(
+                _titleFor(activeTab),
+                style: AppTextStyles.titleSmall,
+              ),
+              centerTitle: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(LucideIcons.logOut, size: 22),
+                  tooltip: 'Cerrar sesión',
+                  onPressed: () => _confirmLogout(context),
+                ),
+                const SizedBox(width: 8),
+              ],
             ),
-            orElse: () => const CircleAvatar(
-              radius: 20,
-              backgroundColor: AppColors.surfaceLightAlt,
-            ),
-          ),
-        ),
-        title: Text(
-          _titleFor(_index),
-          style: AppTextStyles.titleSmall,
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.logOut, size: 22),
-            tooltip: 'Cerrar sesión',
-            onPressed: () => _confirmLogout(context),
-          ),
-          const SizedBox(width: 8),
-        ],
+      // Navigator interno para que el banner overlay tenga context correcto
+      body: Navigator(
+        key: _shellNavigatorKey,
+        onGenerateRoute: (settings) {
+          return MaterialPageRoute<void>(
+            builder: (_) => IndexedStack(index: activeTab, children: pages),
+            settings: settings,
+          );
+        },
       ),
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(activeTab),
     );
   }
 
@@ -84,7 +114,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     }
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(int activeTab) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -99,8 +129,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       child: SafeArea(
         top: false,
         child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          selectedIndex: activeTab,
+          onDestinationSelected: (i) =>
+              ref.read(activeTabProvider.notifier).setTab(i),
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
           indicatorColor: AppColors.primaryDeep.withValues(alpha: 0.12),
@@ -156,125 +187,5 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     if (result == true && context.mounted) {
       await ref.read(authControllerProvider.notifier).logout();
     }
-  }
-}
-
-// ──── Placeholders de tabs (Fase 7) ────
-
-class _InboxPlaceholder extends StatelessWidget {
-  const _InboxPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.inbox,
-                size: 80, color: AppColors.textMutedLight),
-            const SizedBox(height: 16),
-            Text('Bandeja de mensajes', style: AppTextStyles.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Se implementa en Fase 7',
-              style: AppTextStyles.bodyMedium
-                  .copyWith(color: AppColors.textSecondaryLight),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfilePlaceholder extends ConsumerWidget {
-  const _ProfilePlaceholder();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final myProfileAsync = ref.watch(myProfileProvider);
-
-    return myProfileAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(
-        child: Text('Error: $err', style: AppTextStyles.bodyMedium),
-      ),
-      data: (user) => SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            UserAvatar(
-              fullName: user.fullName,
-              photoUrl: user.photoUrl,
-              size: 120,
-            ),
-            const SizedBox(height: 16),
-            Text(user.fullName, style: AppTextStyles.titleLarge),
-            const SizedBox(height: 4),
-            Text(
-              user.email,
-              style: AppTextStyles.bodyMedium
-                  .copyWith(color: AppColors.textSecondaryLight),
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-              child: Column(
-                children: [
-                  _ProfileRow(
-                    label: 'Cargo',
-                    value: user.jobTitle,
-                  ),
-                  const Divider(color: AppColors.borderLight),
-                  _ProfileRow(
-                    label: 'Teléfono',
-                    value: user.phoneNumber,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'Versión completa de "Mi perfil" en Fase 7',
-              style: AppTextStyles.bodySmall
-                  .copyWith(color: AppColors.textMutedLight),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileRow extends StatelessWidget {
-  const _ProfileRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondaryLight,
-              )),
-          Text(value,
-              style: AppTextStyles.bodyMedium
-                  .copyWith(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
   }
 }

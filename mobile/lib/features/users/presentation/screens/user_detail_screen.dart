@@ -13,6 +13,7 @@ import '../../../../shared/widgets/shimmer_loader.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../controllers/user_detail_controller.dart';
 import '../widgets/job_title_chip.dart';
+import '../../../messages/presentation/widgets/send_message_sheet.dart';
 
 class UserDetailScreen extends ConsumerWidget {
   const UserDetailScreen({required this.email, super.key});
@@ -129,15 +130,7 @@ class _DetailContent extends StatelessWidget {
   }
 
   void _openSendMessage(BuildContext context, User recipient) {
-    // En Fase 7 esto abrirá el bottom sheet real de envío de mensaje.
-    // Por ahora, placeholder:
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Envío de mensaje a ${recipient.fullName} se implementa en Fase 7',
-        ),
-      ),
-    );
+    showSendMessageSheet(context, recipient: recipient);
   }
 }
 
