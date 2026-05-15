@@ -12,7 +12,7 @@ class AppConfig {
   /// - Dispositivo Android físico: http://<IP_LOCAL_DEL_PC>:3000
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000',
+    defaultValue: 'http://10.152.178.23:3000',
   );
 
   /// Timeouts de red
